@@ -1,5 +1,6 @@
-#!/usr/local/ipcs/peon/venv/bin/python3
+#!/usr/bin/env python
 # -*- encoding: utf-8 -*-
+
 ##############################################################################
 ## Name: traceroute.py
 ## Purpose: Implements basic UDP and ICMP traceroute using python3
