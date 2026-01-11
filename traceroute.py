@@ -387,14 +387,15 @@ if __name__ == "__main__":
         type=int,
         default=30,
         metavar="max_ttl",
-        help="Set the max number of max_ttl (max TTL to bereached). Default 30",
+        help="Set the max number of max_ttl (max TTL to be reached). \
+              Default is 30",
     )
     optional.add_argument(
         "-n",
         dest="dont_resolve",
         action="store_true",
         default=False,
-        help="Do not resolve IP hostesses to their domain names",
+        help="Do not resolve IP addresses to their domain names",
     )
     optional.add_argument(
         "-p",
@@ -412,7 +413,8 @@ if __name__ == "__main__":
         type=float,
         default=1,
         metavar="max_wait",
-        help="Wait for a probe no more than this seconds. Default 1.0",
+        help="Wait for a probe no more than this amount of seconds. \
+              Default is 1.0 (float)",
     )
     optional.add_argument(
         "-q",
@@ -421,7 +423,7 @@ if __name__ == "__main__":
         type=int,
         default=3,
         metavar="nqueries",
-        help="Set the number of probes per each max_ttl. Default 3",
+        help="Set the number of probes per each hop. Default is 3",
     )
     optional.add_argument(
         "-s",
@@ -437,7 +439,8 @@ if __name__ == "__main__":
         type=int,
         default=0,
         metavar="",
-        help="Use source port num for outgoing packets, Default 0",
+        help="Use source port num for outgoing packets, \
+              Default is 0 (OS decides)",
     )
     positional.add_argument("host", help="The host to traceroute to")
     positional.add_argument(
