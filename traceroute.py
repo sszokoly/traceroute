@@ -167,12 +167,6 @@ def print_result(result: HopResult, dont_resolve: bool = False) -> None:
 
 
 def make_socket_udp(ttl, device=None, src_addr="0.0.0.0", sport=0):
-    if device is None:
-        devices = [x for x in get_interface_names() if x != "lo"]
-        if not devices:
-            raise OSError("No network devices found (excluding loopback)")
-        else:
-            device = devices[0]
     proto_u = socket.getprotobyname("udp")
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, proto_u)
     udp_socket.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl)
@@ -316,7 +310,7 @@ if __name__ == "__main__":
     import argparse
     import sys
 
-    # sys.argv.extend(['8.8.8.8'])
+    #sys.argv.extend(['-q', '1', '-m', '1', '--sport', '2048', '8.8.8.8'])
 
     class CustomHelpFormatter(argparse.HelpFormatter):
         def _format_action_invocation(self, action):
@@ -363,7 +357,7 @@ if __name__ == "__main__":
         type=int,
         default=1,
         metavar="first_ttl",
-        help="Start from the first_ttl max_ttl (instead from 1)",
+        help="Start from the first_ttl (instead from 1)",
     )
     optional.add_argument(
         "-I",
@@ -449,10 +443,10 @@ if __name__ == "__main__":
         nargs="?",
         type=int,
         default=40,
-        help=f"The full packet length (default is the length of an IP \
-               header plus 40)",
+        help=f"UDP payload length (default is 40, making 44 + 40 = 82 total)"
     )
     args = parser.parse_args()
+    print(args)
     try:
         rv: int = get_route(
             args.host,
