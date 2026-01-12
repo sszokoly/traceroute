@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/local/ipcs/peon/venv/bin/python3
 # -*- encoding: utf-8 -*-
 
 ##############################################################################
@@ -321,7 +321,9 @@ def traceroute(
     timestamp=0,
     ssrc=3735928559,
     payload_type=0,
-    inc_seq=False,
+    no_inc_seq=False,
+    no_inc_port=False,
+    no_inc_timestamp=False,
     quiet=False
 ) -> int:
     if not is_ip_address(host):
@@ -374,8 +376,6 @@ def traceroute(
                         payload_type=payload_type,
                         packetlen=packetlen
                     )
-                    if inc_seq:
-                        seq += 1
                 elif udp_format == 'dns':
                     packet = create_dns_packet(
                         domain=dns_query,
@@ -386,7 +386,8 @@ def traceroute(
                     packet = (' ' * (packetlen - 20 - 8)).encode()
 
                 send_socket.sendto(packet, (resolved_host, port))
-                port += 1  # Increment destination port in each packet
+                if not no_inc_port:
+                    port += 1  # Increment destination port in each packet
 
                 ready, _, _ = select.select([recv_socket], [], [], max_wait)
 
@@ -404,6 +405,12 @@ def traceroute(
                 value = round((recv_time - send_time) * 1000, 3)
                 result.add(query_num, value)
 
+        if not no_inc_seq:
+            seq += 1
+
+        if not no_inc_timestamp:
+            timestamp += 160
+
         if not quiet:
             print_result(result, dont_resolve)
 
@@ -420,7 +427,7 @@ if __name__ == "__main__":
     import argparse
     import sys
 
-    #sys.argv.extend(['-q', '1', '-m', '1', '8.8.8.8'])
+    #sys.argv.extend(['-q', '1', '-m', '3', '--no-inc-port', '-i', 'B1', '8.8.8.8'])
 
     class CustomHelpFormatter(argparse.HelpFormatter):
         def _format_action_invocation(self, action):
@@ -494,13 +501,6 @@ if __name__ == "__main__":
         help="Specify a network interface to operate with",
     )
     optional.add_argument(
-        "--inc-seq",
-        dest="inc_seq",
-        action="store_true",
-        default=False,
-        help="Increment RTP sequence number per ttl",
-    )
-    optional.add_argument(
         "-m",
         "--max-hops",
         dest="max_ttl",
@@ -516,6 +516,27 @@ if __name__ == "__main__":
         action="store_true",
         default=False,
         help="Do not resolve IP addresses to their domain names",
+    )
+    optional.add_argument(
+        "--no-inc-port",
+        dest="no_inc_port",
+        action="store_true",
+        default=False,
+        help="Don't increment destination port per ttl, Default is False",
+    )
+    optional.add_argument(
+        "--no-inc-seq",
+        dest="no_inc_seq",
+        action="store_true",
+        default=False,
+        help="Don't increment RTP sequence number per ttl, Default is False",
+    )
+    optional.add_argument(
+        "--no-inc-timestamp",
+        dest="no_inc_timestamp",
+        action="store_true",
+        default=False,
+        help="Don't increment RTP timestamp per ttl by 160, Default is False",
     )
     optional.add_argument(
         "-p",
@@ -546,10 +567,10 @@ if __name__ == "__main__":
         "--wait",
         dest="max_wait",
         type=float,
-        default=1.0,
+        default=2.0,
         metavar="max_wait",
         help="Wait for a probe no more than this amount of seconds. \
-              Default is 1.0 (float)",
+              Default is 2.0 (float)",
     )
     optional.add_argument(
         "-q",
@@ -637,7 +658,9 @@ if __name__ == "__main__":
             timestamp=args.timestamp,
             ssrc=args.ssrc,
             payload_type=args.payload_type,
-            inc_seq=args.inc_seq,
+            no_inc_seq=args.no_inc_seq,
+            no_inc_port=args.no_inc_port,
+            no_inc_timestamp=args.no_inc_timestamp,
             quiet=args.quiet
         )
         sys.exit(rv)
