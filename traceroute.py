@@ -11,14 +11,15 @@
 ## Source: https://github.com/sszokoly/traceroute
 ##############################################################################
 
+import array
+import fcntl
 import os
-import time
 import select
 import socket
 import struct
-import fcntl
-import array
 import platform
+import random
+import time
 from contextlib import ExitStack
 
 try:
@@ -124,6 +125,88 @@ def create_icmp_packet(packet_id, sequence, packetlen=40):
     return header + data
 
 
+def create_dns_packet(domain='google.com', query_type=1, packetlen=172):
+    """
+    Create DNS query packet as bytes.
+    
+    Args:
+        domain: Domain name to query (e.g., 'google.com')
+        query_type: DNS query type (1=A, 28=AAAA, 15=MX, etc.)
+        packetlen: Total packet length (IP + UDP + DNS)
+    
+    Returns:
+        bytes: DNS query packet
+    """
+    # DNS Header (12 bytes)
+    transaction_id = random.randint(0, 65535)
+    flags = 0x0100  # Standard query, recursion desired
+    questions = 1
+    answer_rrs = 0
+    authority_rrs = 0
+    additional_rrs = 0
+    
+    header = struct.pack(
+        '!HHHHHH',
+        transaction_id,
+        flags,
+        questions,
+        answer_rrs,
+        authority_rrs,
+        additional_rrs
+    )
+    
+    # DNS Question Section
+    # Encode domain name (e.g., 'google.com' -> '\x06google\x03com\x00')
+    question = b''
+    for label in domain.split('.'):
+        question += bytes([len(label)]) + label.encode('ascii')
+    question += b'\x00'  # Null terminator
+    
+    # Query type and class
+    question += struct.pack('!HH', query_type, 1)  # Type, Class (1 = IN/Internet)
+    
+    dns_packet = header + question
+    
+    # Pad to reach desired packet length if needed
+    # Total length = IP(20) + UDP(8) + DNS
+    dns_size = len(dns_packet)
+    desired_dns_size = packetlen - 20 - 8
+    
+    if dns_size < desired_dns_size:
+        # Add padding (DNS allows additional data)
+        padding = b'\x00' * (desired_dns_size - dns_size)
+        dns_packet += padding
+    
+    return dns_packet
+
+
+def create_rtp_packet(seq=0, timestamp=0, ssrc=0, payload_type=0, packetlen=172):
+    """Create RTP packet as bytes."""
+    version = 2
+    padding = 0
+    extension = 0
+    cc = 0
+    marker = 0
+    
+    byte1 = (version << 6) | (padding << 5) | (extension << 4) | cc
+    byte2 = (marker << 7) | (payload_type & 0x7F)
+    
+    rtp_header = struct.pack(
+        '!BBHII',
+        byte1,
+        byte2,
+        seq & 0xFFFF,
+        timestamp,
+        ssrc
+    )
+    
+    # Calculate payload size (total - IP - UDP - RTP headers)
+    payload_size = max(0, packetlen - 14 - 20 - 8 - 12)
+    payload = b'\x00' * payload_size
+    
+    return rtp_header + payload
+
+
 def calculate_checksum(data):
     """Calculate ICMP checksum."""
     if len(data) % 2:
@@ -221,8 +304,8 @@ def create_sockets(icmp, ttl, port, device, src_addr, sport):
 
 def get_route(
     host: str,
+    port: int = 33434,
     max_ttl: int = 30,
-    port: int = 33433,
     dont_resolve: bool = False,
     first_ttl: int = 1,
     device=None,
@@ -231,23 +314,32 @@ def get_route(
     nqueries: int = 3,
     icmp: bool = False,
     max_wait: float = 1.0,
-    packetlen: int = 40,
+    packetlen: int = 172,
+    udp_format='rtp',
+    dns_query='google.com',
+    seq=0,
+    timestamp=0,
+    ssrc=3735928559,
+    payload_type=0,
+    inc_seq=False,
+    quiet=False
 ) -> int:
     if not is_ip_address(host):
         resolved_host = socket.gethostbyname(host)
     else:
         resolved_host = host
 
-    print(
-        "traceroute to {} ({}), {} hops max, {} byte packets".format(
-            host, resolved_host, max_ttl, packetlen
-        )
-    )
+    if not quiet:
+        print(
+            "traceroute to {} ({}), {} hops max, {} byte packets".format(
+                host, resolved_host, max_ttl, packetlen
+            ))
 
     for ttl in range(first_ttl, max_ttl + 1):
         cur = None
         result = HopResult(nqueries=nqueries)
-        print(f" {ttl} ", end="")
+        if not quiet:
+            print(f" {ttl} ", end="")
 
         for query_num in range(nqueries):
             send_socket, recv_socket = create_sockets(
@@ -273,11 +365,28 @@ def get_route(
                         packetlen=packetlen,
                     )
                     send_socket.sendto(packet, (resolved_host, 0))
-                else:
-                    # Send UDP packet
-                    payload = "A" * packetlen
-                    send_socket.sendto(payload.encode(), (resolved_host, port))
-                    port += 1  # Increment destination port in each packet
+                elif udp_format == 'rtp':
+                    # Create RTP packet
+                    packet = create_rtp_packet(
+                        payload_type=payload_type,
+                        seq=seq,
+                        timestamp=timestamp,
+                        ssrc=ssrc,
+                        packetlen=packetlen
+                    )
+                    if inc_seq:
+                        seq += 1
+                elif udp_format == 'dns':
+                    packet = create_dns_packet(
+                        domain=dns_query,
+                        query_type=1,  # A record
+                        packetlen=packetlen
+                    )
+                else:  # plain UDP
+                    packet = (' ' * (packetlen - 20 - 8)).encode()
+
+                send_socket.sendto(packet, (resolved_host, port))
+                port += 1  # Increment destination port in each packet
 
                 ready, _, _ = select.select([recv_socket], [], [], max_wait)
 
@@ -295,7 +404,8 @@ def get_route(
                 value = round((recv_time - send_time) * 1000, 3)
                 result.add(query_num, value)
 
-        print_result(result, dont_resolve)
+        if not quiet:
+            print_result(result, dont_resolve)
 
         if cur == resolved_host:
             return 0
@@ -335,7 +445,7 @@ if __name__ == "__main__":
                 return ", ".join(parts)
 
     parser = argparse.ArgumentParser(
-        description="UDP/ICMP traceroute",
+        description="UDP/ICMP traceroute with optional RTP/DNS payload in UDP",
         add_help=False,
         formatter_class=CustomHelpFormatter,
     )
@@ -350,6 +460,14 @@ if __name__ == "__main__":
     )
 
     # Add all optional arguments to the optional group
+    optional.add_argument(
+        "--dns-query",
+        dest="dns_query",
+        default='google.com',
+        metavar="dns_query",
+        help="DNS query target, Default is 'google.com', \
+              used in conjunction with 'udp_format=dns'",
+    )
     optional.add_argument(
         "-f",
         "--first",
@@ -376,6 +494,13 @@ if __name__ == "__main__":
         help="Specify a network interface to operate with",
     )
     optional.add_argument(
+        "--inc-seq",
+        dest="inc_seq",
+        action="store_true",
+        default=False,
+        help="Increment RTP sequence number per ttl",
+    )
+    optional.add_argument(
         "-m",
         "--max-hops",
         dest="max_ttl",
@@ -399,7 +524,22 @@ if __name__ == "__main__":
         type=int,
         default=33434,
         metavar="port",
-        help="Set the destination port to use, Default 33434",
+        help="Set the destination port to use, Default is 33434",
+    )
+    optional.add_argument(
+        "--payload-type",
+        dest="payload_type",
+        type=int,
+        default=0,
+        metavar="payload_type",
+        help="RTP payload type, Default is 0 (G711u)",
+    )
+    optional.add_argument(
+        "--udp-format",
+        dest="udp_format",
+        default='rtp',
+        metavar="udp_format",
+        help="UDP payload format, 'rtp' or 'dns', anything else is plain UDP",
     )
     optional.add_argument(
         "-w",
@@ -421,6 +561,21 @@ if __name__ == "__main__":
         help="Set the number of probes per each hop. Default is 3",
     )
     optional.add_argument(
+        "--quiet",
+        dest="quiet",
+        action="store_true",
+        default=False,
+        help="Do not print anything",
+    )
+    optional.add_argument(
+        "--seq",
+        dest="seq",
+        type=int,
+        default=0,
+        metavar="seq",
+        help="RTP sequence number, Default is 0",
+    )
+    optional.add_argument(
         "-s",
         "--source",
         dest="src_addr",
@@ -433,25 +588,41 @@ if __name__ == "__main__":
         dest="sport",
         type=int,
         default=0,
-        metavar="",
+        metavar="sport",
         help="Use source port num for outgoing packets, \
               Default is 0 (OS decides)",
+    )
+    optional.add_argument(
+        "--ssrc",
+        dest="ssrc",
+        type=int,
+        default=3735928559,
+        metavar="ssrc",
+        help="RTP SSRC number, Default is 3735928559 (0xdeadbeef)",
+    )
+    optional.add_argument(
+        "--timestamp",
+        dest="timestamp",
+        type=int,
+        default=0,
+        metavar="timestamp",
+        help="RTP timestamp, Default is 0",
     )
     positional.add_argument("host", help="The host to traceroute to")
     positional.add_argument(
         "packetlen",
         nargs="?",
         type=int,
-        default=40,
-        help=f"UDP payload length (default is 40, making 44 + 40 = 82 total)"
+        default=172,
+        help=f"UDP payload length (default is 172, 44 + 172 = 214 total)"
     )
     args = parser.parse_args()
     print(args)
     try:
         rv: int = get_route(
-            args.host,
-            args.max_ttl,
-            args.port,
+            host=args.host,
+            port=args.port,
+            max_ttl=args.max_ttl,
             dont_resolve=args.dont_resolve,
             first_ttl=args.first_ttl,
             device=args.device,
@@ -461,6 +632,14 @@ if __name__ == "__main__":
             icmp=args.icmp,
             max_wait=args.max_wait,
             packetlen=args.packetlen,
+            udp_format=args.udp_format,
+            dns_query=args.dns_query,
+            seq=args.seq,
+            timestamp=args.timestamp,
+            ssrc=args.ssrc,
+            payload_type=args.ssrc,
+            inc_seq=args.inc_seq,
+            quiet=args.quiet
         )
         sys.exit(rv)
     except KeyboardInterrupt:
