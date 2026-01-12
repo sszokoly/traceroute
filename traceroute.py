@@ -546,7 +546,7 @@ if __name__ == "__main__":
         "--wait",
         dest="max_wait",
         type=float,
-        default=1,
+        default=1.0,
         metavar="max_wait",
         help="Wait for a probe no more than this amount of seconds. \
               Default is 1.0 (float)",
