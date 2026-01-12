@@ -200,7 +200,7 @@ def create_rtp_packet(seq=0, timestamp=0, ssrc=0, payload_type=0, packetlen=172)
         ssrc
     )
     
-    # Calculate payload size (total - IP - UDP - RTP headers)
+    # Calculate payload size (total - ETH - IP - UDP - RTP headers)
     payload_size = max(0, packetlen - 14 - 20 - 8 - 12)
     payload = b'\x00' * payload_size
     
@@ -368,10 +368,10 @@ def get_route(
                 elif udp_format == 'rtp':
                     # Create RTP packet
                     packet = create_rtp_packet(
-                        payload_type=payload_type,
                         seq=seq,
                         timestamp=timestamp,
                         ssrc=ssrc,
+                        payload_type=payload_type,
                         packetlen=packetlen
                     )
                     if inc_seq:
@@ -420,7 +420,7 @@ if __name__ == "__main__":
     import argparse
     import sys
 
-    #sys.argv.extend(['-q', '1', '-m', '1', '--sport', '2048', '8.8.8.8'])
+    #sys.argv.extend(['-q', '1', '-m', '1', '8.8.8.8'])
 
     class CustomHelpFormatter(argparse.HelpFormatter):
         def _format_action_invocation(self, action):
@@ -613,7 +613,7 @@ if __name__ == "__main__":
         "packetlen",
         nargs="?",
         type=int,
-        default=172,
+        default=214,
         help=f"UDP payload length (default is 172, 44 + 172 = 214 total)"
     )
     args = parser.parse_args()
@@ -637,7 +637,7 @@ if __name__ == "__main__":
             seq=args.seq,
             timestamp=args.timestamp,
             ssrc=args.ssrc,
-            payload_type=args.ssrc,
+            payload_type=args.payload_type,
             inc_seq=args.inc_seq,
             quiet=args.quiet
         )
