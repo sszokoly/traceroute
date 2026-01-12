@@ -302,7 +302,7 @@ def create_sockets(icmp, ttl, port, device, src_addr, sport):
         return send_sock, recv_sock
 
 
-def get_route(
+def traceroute(
     host: str,
     port: int = 33434,
     max_ttl: int = 30,
@@ -617,9 +617,8 @@ if __name__ == "__main__":
         help=f"UDP payload length (default is 172, 44 + 172 = 214 total)"
     )
     args = parser.parse_args()
-    print(args)
     try:
-        rv: int = get_route(
+        rv: int = traceroute(
             host=args.host,
             port=args.port,
             max_ttl=args.max_ttl,
