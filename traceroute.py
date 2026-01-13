@@ -3,11 +3,11 @@
 
 ##############################################################################
 ## Name: traceroute.py
-## Purpose: Implements basic UDP and ICMP traceroute using python3
-## Date: 2026-01-10
+## Purpose: UDP/ICMP traceroute with optional DNS/RTP payload in UDP.
+## Date: 2026-01-12
 ## Author: sszokoly@protonmail.com
 ## License: MIT
-## Version: 0.1
+## Version: 0.2
 ## Source: https://github.com/sszokoly/traceroute
 ##############################################################################
 
