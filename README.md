@@ -1,6 +1,12 @@
 # traceroute
 UDP/ICMP traceroute with optional DNS/RTP payload in UDP.
 
+Usage:
+
+```
+python3 traceroute.py -q 1 -w 0.2 -m 20 --sport=2048 -p 2050 -i B1 192.160.10.8
+```
+
 ```
 optional arguments:
   -h, --help            show this help message and exit
