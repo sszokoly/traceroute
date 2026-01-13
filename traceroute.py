@@ -125,15 +125,15 @@ def create_icmp_packet(packet_id, sequence, packetlen=40):
     return header + data
 
 
-def create_dns_packet(domain='google.com', query_type=1, packetlen=172):
+def create_dns_packet(domain="google.com", query_type=1, packetlen=172):
     """
     Create DNS query packet as bytes.
-    
+
     Args:
         domain: Domain name to query (e.g., 'google.com')
         query_type: DNS query type (1=A, 28=AAAA, 15=MX, etc.)
         packetlen: Total packet length (IP + UDP + DNS)
-    
+
     Returns:
         bytes: DNS query packet
     """
@@ -144,66 +144,65 @@ def create_dns_packet(domain='google.com', query_type=1, packetlen=172):
     answer_rrs = 0
     authority_rrs = 0
     additional_rrs = 0
-    
+
     header = struct.pack(
-        '!HHHHHH',
+        "!HHHHHH",
         transaction_id,
         flags,
         questions,
         answer_rrs,
         authority_rrs,
-        additional_rrs
+        additional_rrs,
     )
-    
+
     # DNS Question Section
     # Encode domain name (e.g., 'google.com' -> '\x06google\x03com\x00')
-    question = b''
-    for label in domain.split('.'):
-        question += bytes([len(label)]) + label.encode('ascii')
-    question += b'\x00'  # Null terminator
-    
+    question = b""
+    for label in domain.split("."):
+        question += bytes([len(label)]) + label.encode("ascii")
+    question += b"\x00"  # Null terminator
+
     # Query type and class
-    question += struct.pack('!HH', query_type, 1)  # Type, Class (1 = IN/Internet)
-    
+    question += struct.pack(
+        "!HH", query_type, 1
+    )  # Type, Class (1 = IN/Internet)
+
     dns_packet = header + question
-    
+
     # Pad to reach desired packet length if needed
     # Total length = IP(20) + UDP(8) + DNS
     dns_size = len(dns_packet)
     desired_dns_size = packetlen - 20 - 8
-    
+
     if dns_size < desired_dns_size:
         # Add padding (DNS allows additional data)
-        padding = b'\x00' * (desired_dns_size - dns_size)
+        padding = b"\x00" * (desired_dns_size - dns_size)
         dns_packet += padding
-    
+
     return dns_packet
 
 
-def create_rtp_packet(seq=0, timestamp=0, ssrc=0, payload_type=0, packetlen=172):
+def create_rtp_packet(
+    seq=0, timestamp=0, ssrc=0, payload_type=0, packetlen=172
+):
     """Create RTP packet as bytes."""
     version = 2
     padding = 0
     extension = 0
     cc = 0
     marker = 0
-    
+
     byte1 = (version << 6) | (padding << 5) | (extension << 4) | cc
     byte2 = (marker << 7) | (payload_type & 0x7F)
-    
+
     rtp_header = struct.pack(
-        '!BBHII',
-        byte1,
-        byte2,
-        seq & 0xFFFF,
-        timestamp,
-        ssrc
+        "!BBHII", byte1, byte2, seq & 0xFFFF, timestamp, ssrc
     )
-    
+
     # Calculate payload size (total - ETH - IP - UDP - RTP headers)
     payload_size = max(0, packetlen - 14 - 20 - 8 - 12)
-    payload = b'\x00' * payload_size
-    
+    payload = b"\x00" * payload_size
+
     return rtp_header + payload
 
 
@@ -315,8 +314,8 @@ def traceroute(
     icmp: bool = False,
     max_wait: float = 1.0,
     packetlen: int = 172,
-    udp_format='rtp',
-    dns_query='google.com',
+    udp_format="rtp",
+    dns_query="google.com",
     seq=0,
     timestamp=0,
     ssrc=3735928559,
@@ -324,7 +323,7 @@ def traceroute(
     no_inc_seq=False,
     no_inc_port=False,
     no_inc_timestamp=False,
-    quiet=False
+    quiet=False,
 ) -> int:
     if not is_ip_address(host):
         resolved_host = socket.gethostbyname(host)
@@ -335,7 +334,8 @@ def traceroute(
         print(
             "traceroute to {} ({}), {} hops max, {} byte packets".format(
                 host, resolved_host, max_ttl, packetlen
-            ))
+            )
+        )
 
     for ttl in range(first_ttl, max_ttl + 1):
         cur = None
@@ -366,23 +366,23 @@ def traceroute(
                         sequence=query_num,
                         packetlen=packetlen,
                     )
-                elif udp_format == 'rtp':
+                elif udp_format == "rtp":
                     # Create RTP packet
                     packet = create_rtp_packet(
                         seq=seq,
                         timestamp=timestamp,
                         ssrc=ssrc,
                         payload_type=payload_type,
-                        packetlen=packetlen
+                        packetlen=packetlen,
                     )
-                elif udp_format == 'dns':
+                elif udp_format == "dns":
                     packet = create_dns_packet(
                         domain=dns_query,
                         query_type=1,  # A record
-                        packetlen=packetlen
+                        packetlen=packetlen,
                     )
                 else:  # plain UDP
-                    packet = (' ' * (packetlen - 20 - 8)).encode()
+                    packet = (" " * (packetlen - 20 - 8)).encode()
 
                 send_socket.sendto(packet, (resolved_host, port))
                 if not no_inc_port:
@@ -426,7 +426,7 @@ if __name__ == "__main__":
     import argparse
     import sys
 
-    #sys.argv.extend(['-q', '1', '-m', '1', '-I', '8.8.8.8'])
+    # sys.argv.extend(['-q', '1', '-m', '1', '-I', '8.8.8.8'])
 
     class CustomHelpFormatter(argparse.HelpFormatter):
         def _format_action_invocation(self, action):
@@ -453,7 +453,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="UDP/ICMP traceroute with optional DNS/RTP payload in UDP.",
         add_help=False,
-        formatter_class=CustomHelpFormatter
+        formatter_class=CustomHelpFormatter,
     )
 
     # Create custom groups in desired order
@@ -562,7 +562,7 @@ if __name__ == "__main__":
     optional.add_argument(
         "--udp-format",
         dest="udp_format",
-        default='rtp',
+        default="rtp",
         metavar="udp_format",
         help="UDP payload format, 'rtp' or 'dns', anything else is plain UDP",
     )
@@ -579,7 +579,7 @@ if __name__ == "__main__":
     optional_dns.add_argument(
         "--dns-query",
         dest="dns_query",
-        default='google.com',
+        default="google.com",
         metavar="domain",
         help="DNS query target, Default is 'google.com', \
               used in conjunction with 'udp_format=dns'",
@@ -636,7 +636,7 @@ if __name__ == "__main__":
         nargs="?",
         type=int,
         default=214,
-        help=f"UDP payload length (default is 214, 44 + 172)"
+        help=f"UDP payload length (default is 214, 44 + 172)",
     )
     args = parser.parse_args()
     try:
@@ -662,7 +662,7 @@ if __name__ == "__main__":
             no_inc_seq=args.no_inc_seq,
             no_inc_port=args.no_inc_port,
             no_inc_timestamp=args.no_inc_timestamp,
-            quiet=args.quiet
+            quiet=args.quiet,
         )
         sys.exit(rv)
     except KeyboardInterrupt:
