@@ -408,7 +408,7 @@ def traceroute(
             seq += 1
 
         if not no_inc_timestamp:
-            timestamp += 160
+            timestamp += seq * 160
 
         if not quiet:
             print_result(result, dont_resolve)
@@ -610,9 +610,9 @@ if __name__ == "__main__":
         "--seq",
         dest="seq",
         type=int,
-        default=0,
+        default=1,
         metavar="seq",
-        help="RTP sequence number, Default is 0",
+        help="RTP sequence number, Default is 1",
     )
     optional_rtp.add_argument(
         "--ssrc",
