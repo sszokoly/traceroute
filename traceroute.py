@@ -341,7 +341,7 @@ def traceroute(
         cur = None
         result = HopResult(nqueries=nqueries)
         if not quiet:
-            print(f" {ttl} ", end="")
+            print(f"{ttl:>2} ", end="")
 
         for query_num in range(nqueries):
             send_socket, recv_socket = create_sockets(
@@ -366,7 +366,6 @@ def traceroute(
                         sequence=query_num,
                         packetlen=packetlen,
                     )
-                    send_socket.sendto(packet, (resolved_host, 0))
                 elif udp_format == 'rtp':
                     # Create RTP packet
                     packet = create_rtp_packet(
@@ -427,7 +426,7 @@ if __name__ == "__main__":
     import argparse
     import sys
 
-    #sys.argv.extend(['-q', '1', '-m', '3', '--no-inc-port', '-i', 'B1', '8.8.8.8'])
+    #sys.argv.extend(['-q', '1', '-m', '1', '-I', '8.8.8.8'])
 
     class CustomHelpFormatter(argparse.HelpFormatter):
         def _format_action_invocation(self, action):
@@ -452,13 +451,15 @@ if __name__ == "__main__":
                 return ", ".join(parts)
 
     parser = argparse.ArgumentParser(
-        description="UDP/ICMP traceroute with optional RTP/DNS payload in UDP",
+        description="UDP/ICMP traceroute with optional DNS/RTP payload in UDP",
         add_help=False,
-        formatter_class=CustomHelpFormatter,
+        formatter_class=CustomHelpFormatter
     )
 
     # Create custom groups in desired order
     optional = parser.add_argument_group("optional arguments")
+    optional_dns = parser.add_argument_group("optional UDP/DNS arguments")
+    optional_rtp = parser.add_argument_group("optional UDP/RTP arguments")
     positional = parser.add_argument_group("positional arguments")
 
     # Add help to optional arguments group
@@ -468,29 +469,13 @@ if __name__ == "__main__":
 
     # Add all optional arguments to the optional group
     optional.add_argument(
-        "--dns-query",
-        dest="dns_query",
-        default='google.com',
-        metavar="dns_query",
-        help="DNS query target, Default is 'google.com', \
-              used in conjunction with 'udp_format=dns'",
-    )
-    optional.add_argument(
         "-f",
         "--first",
         dest="first_ttl",
         type=int,
         default=1,
         metavar="first_ttl",
-        help="Start from the first_ttl (instead from 1)",
-    )
-    optional.add_argument(
-        "-I",
-        "--icmp",
-        dest="icmp",
-        action="store_true",
-        default=False,
-        help="Use ICMP ECHO for tracerouting",
+        help="Start from the first_ttl (not from 1)",
     )
     optional.add_argument(
         "-i",
@@ -499,6 +484,14 @@ if __name__ == "__main__":
         default=None,
         metavar="device",
         help="Specify a network interface to operate with",
+    )
+    optional.add_argument(
+        "-I",
+        "--icmp",
+        dest="icmp",
+        action="store_true",
+        default=False,
+        help="Use ICMP ECHO for tracerouting",
     )
     optional.add_argument(
         "-m",
@@ -522,21 +515,7 @@ if __name__ == "__main__":
         dest="no_inc_port",
         action="store_true",
         default=False,
-        help="Don't increment destination port per ttl, Default is False",
-    )
-    optional.add_argument(
-        "--no-inc-seq",
-        dest="no_inc_seq",
-        action="store_true",
-        default=False,
-        help="Don't increment RTP sequence number per ttl, Default is False",
-    )
-    optional.add_argument(
-        "--no-inc-timestamp",
-        dest="no_inc_timestamp",
-        action="store_true",
-        default=False,
-        help="Don't increment RTP timestamp per ttl by 160, Default is False",
+        help="Don't increment destination port per hop, Default is False",
     )
     optional.add_argument(
         "-p",
@@ -545,32 +524,7 @@ if __name__ == "__main__":
         type=int,
         default=33434,
         metavar="port",
-        help="Set the destination port to use, Default is 33434",
-    )
-    optional.add_argument(
-        "--payload-type",
-        dest="payload_type",
-        type=int,
-        default=0,
-        metavar="payload_type",
-        help="RTP payload type, Default is 0 (G711u)",
-    )
-    optional.add_argument(
-        "--udp-format",
-        dest="udp_format",
-        default='rtp',
-        metavar="udp_format",
-        help="UDP payload format, 'rtp' or 'dns', anything else is plain UDP",
-    )
-    optional.add_argument(
-        "-w",
-        "--wait",
-        dest="max_wait",
-        type=float,
-        default=2.0,
-        metavar="max_wait",
-        help="Wait for a probe no more than this amount of seconds. \
-              Default is 2.0 (float)",
+        help="Set the destination port to use (UDP only), Default is 33434",
     )
     optional.add_argument(
         "-q",
@@ -589,14 +543,6 @@ if __name__ == "__main__":
         help="Do not print anything",
     )
     optional.add_argument(
-        "--seq",
-        dest="seq",
-        type=int,
-        default=0,
-        metavar="seq",
-        help="RTP sequence number, Default is 0",
-    )
-    optional.add_argument(
         "-s",
         "--source",
         dest="src_addr",
@@ -610,10 +556,65 @@ if __name__ == "__main__":
         type=int,
         default=0,
         metavar="sport",
-        help="Use source port num for outgoing packets, \
+        help="Use source port num for outgoing packets (UDP only), \
               Default is 0 (OS decides)",
     )
     optional.add_argument(
+        "--udp-format",
+        dest="udp_format",
+        default='rtp',
+        metavar="udp_format",
+        help="UDP payload format, 'rtp' or 'dns', anything else is plain UDP",
+    )
+    optional.add_argument(
+        "-w",
+        "--wait",
+        dest="max_wait",
+        type=float,
+        default=1.0,
+        metavar="max_wait",
+        help="Wait for a probe no more than this amount of seconds. \
+              Default is 1.0 (float)",
+    )
+    optional_dns.add_argument(
+        "--dns-query",
+        dest="dns_query",
+        default='google.com',
+        metavar="domain",
+        help="DNS query target, Default is 'google.com', \
+              used in conjunction with 'udp_format=dns'",
+    )
+    optional_rtp.add_argument(
+        "--no-inc-seq",
+        dest="no_inc_seq",
+        action="store_true",
+        default=False,
+        help="Don't increment RTP sequence number per hop, Default is False",
+    )
+    optional_rtp.add_argument(
+        "--no-inc-timestamp",
+        dest="no_inc_timestamp",
+        action="store_true",
+        default=False,
+        help="Don't increment RTP timestamp per hop by 160, Default is False",
+    )
+    optional_rtp.add_argument(
+        "--payload-type",
+        dest="payload_type",
+        type=int,
+        default=0,
+        metavar="payload_type",
+        help="RTP payload type, Default is 0 (G711u)",
+    )
+    optional_rtp.add_argument(
+        "--seq",
+        dest="seq",
+        type=int,
+        default=0,
+        metavar="seq",
+        help="RTP sequence number, Default is 0",
+    )
+    optional_rtp.add_argument(
         "--ssrc",
         dest="ssrc",
         type=int,
@@ -621,7 +622,7 @@ if __name__ == "__main__":
         metavar="ssrc",
         help="RTP SSRC number, Default is 3735928559 (0xdeadbeef)",
     )
-    optional.add_argument(
+    optional_rtp.add_argument(
         "--timestamp",
         dest="timestamp",
         type=int,
@@ -635,7 +636,7 @@ if __name__ == "__main__":
         nargs="?",
         type=int,
         default=214,
-        help=f"UDP payload length (default is 172, 44 + 172 = 214 total)"
+        help=f"UDP payload length (default is 214, 44 + 172)"
     )
     args = parser.parse_args()
     try:
