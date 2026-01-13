@@ -451,7 +451,7 @@ if __name__ == "__main__":
                 return ", ".join(parts)
 
     parser = argparse.ArgumentParser(
-        description="UDP/ICMP traceroute with optional DNS/RTP payload in UDP",
+        description="UDP/ICMP traceroute with optional DNS/RTP payload in UDP.",
         add_help=False,
         formatter_class=CustomHelpFormatter
     )
